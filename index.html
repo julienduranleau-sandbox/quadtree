@@ -8,9 +8,27 @@
                 margin: 0px;
                 overflow: hidden;
             }
+            .controls {
+                font-family: "Helvetica";
+                position: absolute;
+                top: 0px;
+                right: 0px;
+                background-color: #151515;
+                padding: 15px;
+                color: #fff;
+                user-select: none;
+            }
         </style>
     </head>
     <body>
+        <div class="controls">
+            <div>Disable Quadtree <input type="checkbox" id="disableCheckbox" /></div>
+            <div>Hide Quadtree <input type="checkbox" id="hideCheckbox" /></div>
+            <br/>
+            <div><input type="range" step="1" min="2" max="4000" value="500" id="entitySlider"></div>
+            <div><span id="entitiesLabel"></span> entities</div>
+        </div>
+
         <script src="libs/stats.min.js"></script>
         <script src="libs/p5.min.js"></script>
         <script src="libs/p5.dom.js"></script>

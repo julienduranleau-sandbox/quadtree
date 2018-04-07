@@ -1,5 +1,5 @@
 ;(() => {
-  const MAX_ENTITY_PER_QUAD = 1
+  const MAX_ENTITY_PER_QUAD = 3
 
   class Game {
     constructor() {
@@ -7,50 +7,169 @@
 
       this.stats = new Stats()
 
-      this.items = []
-      this.qtree = new QuadTree(MAX_ENTITY_PER_QUAD, new AABB(0,0,width,height))
+      this.entities = []
+      this.qtree = new QuadTree(MAX_ENTITY_PER_QUAD, [0,0,width,height])
+      this.qtreeEnabled = true
+      this.qtreeGridEnabled = true
+      this.manuallyAddedEntities = 0
 
-      window.qtree = this.qtree
+      this.spawnQuantity(document.getElementById('entitySlider').value)
 
-      for (let i = 0; i < 400; i++) {
-        let item = new AABB(random(width), random(height))
-        this.items.push(item)
-        this.qtree.add(item)
+      this.initGui()
+    }
+
+    initGui() {
+      document.getElementById('disableCheckbox').onchange = (e) => {
+        this.qtreeEnabled = !e.target.checked
+      }
+
+      document.getElementById('hideCheckbox').onchange = (e) => {
+        this.qtreeGridEnabled = !e.target.checked
+      }
+
+      document.getElementById('entitySlider').onchange = (e) => {
+        this.spawnQuantity(e.target.value)
       }
 
       document.body.appendChild(this.stats.dom)
     }
 
-    mousePressed(e) {
-      let item = new AABB(mouseX, mouseY)
-      this.items.push(item)
-      this.qtree.add(item)
+    spawnQuantity(n) {
+      document.getElementById('entitiesLabel').innerHTML = ''+n
+      this.entities = []
+      this.qtree.clear()
+
+      for (let i = 0; i < n; i++) {
+        this.entities.push(this.generateNewEntity())
+      }
     }
 
+    generateNewEntity(x,y) {
+      let a = random(0, 2*PI)
+      return {
+        x: x || random(width),
+        y: y || random(height),
+        w: random(5, 20),
+        h: random(5, 20),
+        vx: cos(a),
+        vy: sin(a)
+      }
+    }
+
+    mousePressed(e) {
+      let el = this.generateNewEntity(mouseX, mouseY)
+
+      this.entities.push(el)
+      this.qtree.add(el, [el.x, el.y, el.w, el.h])
+
+      this.manuallyAddedEntities++
+      document.getElementById('entitiesLabel').innerHTML = this.entities.length
+    }
+
+    refreshQTree() {
+      this.qtree.clear()
+
+      for (let i = 0, cnt = this.entities.length; i < cnt; i++) {
+        let el = this.entities[i]
+        this.qtree.add(el, [el.x, el.y, el.w, el.h])
+      }
+    }
+
+    update() {
+      for (let i = 0, cnt = this.entities.length; i < cnt; i++) {
+        let el = this.entities[i]
+
+        el.x += el.vx
+        el.y += el.vy
+
+        if (el.x < 0 || el.x + el.w > width) el.vx *= -1
+        if (el.y < 0 || el.y + el.h > height) el.vy *= -1
+      }
+
+      if (this.qtreeEnabled) {
+        this.refreshQTree()
+      }
+    }
+
+    drawWithQTree() {
+      for (let i = 0, len = this.entities.length; i < len; i++) {
+        let el = this.entities[i]
+        let elBounds = new AABB(el.x, el.y, el.w, el.h)
+        let collision = false
+
+        let nearbyEntities = this.qtree.query(elBounds)
+        for (let j = 0, jcnt = nearbyEntities.length; j < jcnt; j++) {
+          let el2 = nearbyEntities[j]
+          if (el !== el2.referer && elBounds.intersectsAABB(el2)) {
+            collision = true
+            break
+          }
+        }
+        if (collision) {
+          fill(255, 0, 0)
+        } else {
+          fill(255, 100)
+        }
+        rect(el.x, el.y, el.w, el.h)
+      }
+    }
+
+    drawWithoutQTree() {
+      for (let i = 0, len = this.entities.length; i < len; i++) {
+        let el = this.entities[i]
+        let elBounds = new AABB(el.x, el.y, el.w, el.h)
+        let collision = false
+
+        for (let j = 0, jcnt = this.entities.length; j < jcnt; j++) {
+          let el2 = this.entities[j]
+          let el2Bounds = new AABB(el2.x, el2.y, el2.w, el2.h)
+
+          if (el !== el2 && elBounds.intersectsAABB(el2Bounds)) {
+            collision = true
+            break
+          }
+        }
+        if (collision) {
+          fill(255, 0, 0)
+        } else {
+          fill(255, 100)
+        }
+        rect(el.x, el.y, el.w, el.h)
+      }
+    }
 
     draw() {
+      this.update()
+
       background(15)
 
-      let area = new AABB(mouseX - 50, mouseY - 50, 100, 100)
-
-      this.qtree.draw()
-
-      stroke(0,255,0)
-      noFill()
-      rect(area.x, area.y, area.w, area.h)
+      let area = [mouseX - 50, mouseY - 50, 100, 100]
 
       noStroke()
-      fill(255)
-      this.items.forEach(item => {
-        ellipse(item.x, item.y, 5)
-      })
+      if (this.qtreeEnabled) {
+        this.drawWithQTree()
+      } else {
+        this.drawWithoutQTree()
+      }
 
       noStroke()
       fill(0,255,0)
       let selectedItems = this.qtree.query(area)
       selectedItems.forEach(item => {
-        ellipse(item.x, item.y, 5)
+        rect(item.x, item.y, item.w, item.h)
       })
+
+      strokeWeight(1)
+      stroke(0,255,0)
+      noFill()
+      rect(area[0], area[1], area[2], area[3])
+
+      if (this.qtreeEnabled && this.qtreeGridEnabled) {
+        noFill()
+        stroke(100)
+        strokeWeight(1)
+        this.qtree.draw()
+      }
 
       this.stats.update()
     }
